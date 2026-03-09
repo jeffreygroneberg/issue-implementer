@@ -147,19 +147,17 @@ async def create_session(
         await client.start()
         logger.info("Copilot client started successfully")
 
-        def _on_permission_request(request, invocation):
-            logger.info("PERMISSION_REQUEST: kind=%s, tool=%s, invocation=%s",
-                        request.get("kind", "?"), request.get("toolCallId", "?"),
-                        invocation)
-            return {"kind": "approved"}
-
         logger.info("Creating session: model=%s, skill_dir=%s, phase=%s", config.model, skill_dir, phase)
         logger.info("System message (first 300 chars): %s", system_message[:300])
+        tools = ["bash", "glob", "view", "web_fetch", "report_intent", "task"]
+        if phase == "implement":
+            tools += ["write_file", "read_file"]
         session_config = {
             "model": config.model,
             "skill_directories": [skill_dir],
             "system_message": {"content": system_message},
-            "on_permission_request": _on_permission_request,
+            "available_tools": tools,
+            "on_permission_request": PermissionHandler.approve_all,
             "hooks": {
                 "on_pre_tool_use": _make_pre_tool_hook(config, phase),
                 "on_post_tool_use": _make_post_tool_hook(),
