@@ -198,10 +198,11 @@ async def run_agent(
 
     try:
         async with create_session(config, skill_dir, system_message, phase) as session:
-            logger.info("Sending prompt to agent via send_and_wait (timeout=%ds)...", config.timeout_minutes * 60)
+            timeout_secs = config.timeout_minutes * 60
+            logger.info("Sending prompt to agent via send_and_wait (timeout=%ds)...", timeout_secs)
             response = await asyncio.wait_for(
-                session.send_and_wait({"prompt": prompt}),
-                timeout=config.timeout_minutes * 60,
+                session.send_and_wait({"prompt": prompt}, timeout=timeout_secs),
+                timeout=timeout_secs + 30,  # outer guard slightly longer
             )
             if response:
                 content = response.data.content
