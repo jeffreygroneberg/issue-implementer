@@ -14,6 +14,26 @@ GHES instances [lag behind github.com in feature availability](https://docs.gith
 
 > **TL;DR:** If you're on GHES and want Copilot to work on your issues like it does on github.com — this action is for you.
 
+## Why a Composite Action?
+
+This project is packaged as a [Composite Action](https://docs.github.com/en/actions/sharing-automations/creating-actions/creating-a-composite-action) rather than a Docker or JavaScript action. This is a deliberate choice for maximum portability — especially on GHES:
+
+- **No build step required.** Composite actions are just YAML + scripts. They run directly on the caller's runner without building a container image or bundling Node.js modules.
+- **Works on any runner.** Self-hosted runners on GHES don't always have Docker available. Composite actions only need a shell, so they work everywhere — `ubuntu-latest`, `[self-hosted, linux]`, or any custom runner label.
+- **Easy to share across an enterprise.** On GHES, you can host this action in an [internal repository](https://docs.github.com/en/enterprise-server@latest/repositories/creating-and-managing-repositories/about-repositories#about-internal-repositories) visible to all organization members. Any repo in the same GHES instance can then reference it with `uses: your-org/issue-implementer@v1` — no marketplace publishing needed.
+- **Transparent and auditable.** All logic lives in plain Python scripts and a YAML file. Enterprise security teams can review exactly what runs before approving it for use across the organization.
+
+### Sharing on GHES
+
+To make this action available across your GHES organization:
+
+1. **Fork or mirror** this repository into your GHES instance as an **internal** repository (e.g. `your-org/copilot-issue-agent`)
+2. **Tag a release** (e.g. `v1`) so consumers can pin to a stable version
+3. **Enable Actions access** — go to the repo's Settings → Actions → General → [Access](https://docs.github.com/en/enterprise-server@latest/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository#allowing-access-to-components-in-an-internal-repository) and select *"Accessible from repositories in the organization"* (or enterprise)
+4. **Consumers** add the workflow to their repo referencing `your-org/copilot-issue-agent@v1` — that's it
+
+No marketplace, no container registry, no npm packages. Just a Git repo with a tag.
+
 ## How It Works
 
 The agent operates in a **plan → refine → implement** loop driven entirely by labels and issue comments:
