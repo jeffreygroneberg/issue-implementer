@@ -100,6 +100,10 @@ permissions:
 jobs:
   copilot:
     runs-on: ubuntu-latest
+    if: >-
+      (github.event_name == 'issues' && github.event.label.name == 'copilot') ||
+      (github.event_name == 'issue_comment' && github.event.issue.state == 'open' &&
+       contains(join(github.event.issue.labels.*.name, ','), 'copilot'))
     steps:
       - uses: actions/checkout@v4
       - uses: jeffreygroneberg/issue-implementer@v1
@@ -107,9 +111,13 @@ jobs:
           copilot-pat: ${{ secrets.COPILOT_PAT }}
 ```
 
-### 5. Create the Labels
+The `if` condition ensures the job only runs when:
+- An issue is labeled with exactly `copilot`, or
+- A comment is created on an open issue that has any `copilot*` label
 
-The action uses these labels (create them in your repo):
+### 5. Try It Out
+
+Labels are **created automatically** on the first run. The action ensures these labels exist:
 
 | Label | Purpose |
 |-------|---------|
@@ -119,7 +127,7 @@ The action uses these labels (create them in your repo):
 | `copilot:review` | Set by agent after opening a PR |
 | `copilot:failed` | Set by agent on errors |
 
-### 6. Try It Out
+To get started:
 
 1. Open a new issue describing a feature or bug fix
 2. Add the `copilot` label
