@@ -15,6 +15,7 @@ _DEFAULTS = {
     "implement_command": "/implement",
     "cancel_command": "/cancel",
     "model": "gpt-5.2",
+    "reasoning_effort": "high",
     "max_refinement_rounds": 10,
     "max_files_changed": 10,
     "timeout_minutes": 15,
@@ -28,6 +29,7 @@ class AgentConfig:
     implement_command: str = _DEFAULTS["implement_command"]
     cancel_command: str = _DEFAULTS["cancel_command"]
     model: str = _DEFAULTS["model"]
+    reasoning_effort: str = _DEFAULTS["reasoning_effort"]
     max_refinement_rounds: int = _DEFAULTS["max_refinement_rounds"]
     max_files_changed: int = _DEFAULTS["max_files_changed"]
     timeout_minutes: int = _DEFAULTS["timeout_minutes"]
@@ -61,6 +63,7 @@ def load_config() -> AgentConfig:
         implement_command=file_values.get("implement_command", _DEFAULTS["implement_command"]),
         cancel_command=file_values.get("cancel_command", _DEFAULTS["cancel_command"]),
         model=file_values.get("model", _DEFAULTS["model"]),
+        reasoning_effort=file_values.get("reasoning_effort", _DEFAULTS["reasoning_effort"]),
         max_refinement_rounds=int(file_values.get("max_refinement_rounds", _DEFAULTS["max_refinement_rounds"])),
         max_files_changed=int(file_values.get("max_files_changed", _DEFAULTS["max_files_changed"])),
         timeout_minutes=int(file_values.get("timeout_minutes", _DEFAULTS["timeout_minutes"])),
@@ -69,6 +72,7 @@ def load_config() -> AgentConfig:
 
     # Environment overrides (from composite action inputs)
     cfg.model = os.environ.get("MODEL", cfg.model)
+    cfg.reasoning_effort = os.environ.get("REASONING_EFFORT", cfg.reasoning_effort)
     cfg.max_files_changed = int(os.environ.get("MAX_FILES_CHANGED", cfg.max_files_changed))
     cfg.timeout_minutes = int(os.environ.get("TIMEOUT_MINUTES", cfg.timeout_minutes))
 

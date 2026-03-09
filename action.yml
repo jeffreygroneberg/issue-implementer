@@ -17,6 +17,9 @@ inputs:
   timeout-minutes:
     description: 'Timeout for agent session in minutes'
     default: '15'
+  reasoning-effort:
+    description: 'Reasoning effort level (low, medium, high, xhigh)'
+    default: 'high'
 
 runs:
   using: 'composite'
@@ -92,6 +95,7 @@ runs:
         MODEL: ${{ inputs.model }}
         MAX_FILES_CHANGED: ${{ inputs.max-files-changed }}
         TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
+        REASONING_EFFORT: ${{ inputs.reasoning-effort }}
         AGENT_ROOT: ${{ github.action_path }}
       run: |
         case "${{ steps.detect.outputs.mode }}" in

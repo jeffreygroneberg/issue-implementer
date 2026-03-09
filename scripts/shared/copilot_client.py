@@ -9,6 +9,7 @@ import sys
 from contextlib import asynccontextmanager
 
 from copilot import CopilotClient
+from copilot.types import PermissionHandler
 
 from .config import AgentConfig
 
@@ -146,13 +147,15 @@ async def create_session(
         await client.start()
         logger.info("Copilot client started successfully")
 
-        def _on_permission_request(req):
-            logger.info("PERMISSION_REQUEST: %s", req)
+        def _on_permission_request(request, invocation):
+            logger.info("PERMISSION_REQUEST: kind=%s, tool=%s, invocation=%s",
+                        request.get("kind", "?"), request.get("toolCallId", "?"),
+                        invocation)
             return {"kind": "approved"}
 
         logger.info("Creating session: model=%s, skill_dir=%s, phase=%s", config.model, skill_dir, phase)
         logger.info("System message (first 300 chars): %s", system_message[:300])
-        session = await client.create_session({
+        session_config = {
             "model": config.model,
             "skill_directories": [skill_dir],
             "system_message": {"content": system_message},
@@ -161,7 +164,11 @@ async def create_session(
                 "on_pre_tool_use": _make_pre_tool_hook(config, phase),
                 "on_post_tool_use": _make_post_tool_hook(),
             },
-        })
+        }
+        if config.reasoning_effort:
+            session_config["reasoning_effort"] = config.reasoning_effort
+            logger.info("reasoning_effort=%s", config.reasoning_effort)
+        session = await client.create_session(session_config)
         logger.info("Session created successfully")
 
         yield session
