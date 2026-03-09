@@ -100,10 +100,6 @@ permissions:
 jobs:
   copilot:
     runs-on: ubuntu-latest
-    if: >-
-      (github.event_name == 'issues' && github.event.label.name == 'copilot') ||
-      (github.event_name == 'issue_comment' && github.event.issue.state == 'open' &&
-       contains(join(github.event.issue.labels.*.name, ','), 'copilot'))
     steps:
       - uses: actions/checkout@v4
       - uses: jeffreygroneberg/issue-implementer@v1
@@ -111,9 +107,7 @@ jobs:
           copilot-pat: ${{ secrets.COPILOT_PAT }}
 ```
 
-The `if` condition ensures the job only runs when:
-- An issue is labeled with exactly `copilot`, or
-- A comment is created on an open issue that has any `copilot*` label
+The action handles all event filtering internally — it detects the mode (plan, refine, implement, cancel, or skip) and only runs when relevant.
 
 ### 5. Try It Out
 

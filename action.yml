@@ -24,24 +24,6 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: Ensure labels exist
-      shell: bash
-      env:
-        GH_TOKEN: ${{ github.token }}
-        REPO: ${{ github.repository }}
-      run: |
-        declare -A LABELS=(
-          ["copilot"]="0e8a16:Trigger label for Copilot Issue Agent"
-          ["copilot:plan"]="1d76db:Agent has posted an implementation plan"
-          ["copilot:working"]="fbca04:Agent is implementing code changes"
-          ["copilot:review"]="6f42c1:Agent opened a draft PR for review"
-          ["copilot:failed"]="d93f0b:Agent encountered an error"
-        )
-        for label in "${!LABELS[@]}"; do
-          IFS=: read -r color desc <<< "${LABELS[$label]}"
-          gh label create "$label" --repo "$REPO" --color "$color" --description "$desc" 2>/dev/null || true
-        done
-
     - name: Detect mode
       id: detect
       shell: bash
@@ -77,6 +59,25 @@ runs:
 
         echo "mode=$MODE" >> "$GITHUB_OUTPUT"
         echo "::notice::Copilot Agent mode: $MODE"
+
+    - name: Ensure labels exist
+      if: steps.detect.outputs.mode != 'skip'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+      run: |
+        declare -A LABELS=(
+          ["copilot"]="0e8a16:Trigger label for Copilot Issue Agent"
+          ["copilot:plan"]="1d76db:Agent has posted an implementation plan"
+          ["copilot:working"]="fbca04:Agent is implementing code changes"
+          ["copilot:review"]="6f42c1:Agent opened a draft PR for review"
+          ["copilot:failed"]="d93f0b:Agent encountered an error"
+        )
+        for label in "${!LABELS[@]}"; do
+          IFS=: read -r color desc <<< "${LABELS[$label]}"
+          gh label create "$label" --repo "$REPO" --color "$color" --description "$desc" 2>/dev/null || true
+        done
 
     - name: Setup Python
       if: steps.detect.outputs.mode != 'skip' && steps.detect.outputs.mode != 'cancel'
