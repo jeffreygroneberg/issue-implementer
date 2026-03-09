@@ -18,20 +18,20 @@ GHES instances [lag behind github.com in feature availability](https://docs.gith
 
 The agent operates in a **plan → refine → implement** loop driven entirely by labels and issue comments:
 
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│                                                                      │
-│   1. Label issue "copilot"                                           │
-│        ↓                                                             │
-│   2. Agent analyzes issue + codebase → posts implementation plan     │
-│        ↓                                                             │
-│   3. You review the plan                                             │
-│        │                                                             │
-│        ├── 💬 Comment with feedback → agent refines the plan (→ 3)   │
-│        ├── ✅ /implement         → agent codes + opens draft PR      │
-│        └── 🚫 /cancel            → agent stops, labels removed       │
-│                                                                      │
-└──────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    A["🏷️ Label issue with <b>copilot</b>"] --> B["🔍 Agent analyzes issue + codebase"]
+    B --> C["📋 Agent posts implementation plan"]
+    C --> D{"👀 You review the plan"}
+    D -->|"💬 Comment with feedback"| E["🔄 Agent refines the plan"]
+    E --> D
+    D -->|"✅ /implement"| F["⚙️ Agent codes + opens draft PR"]
+    D -->|"🚫 /cancel"| G["🛑 Agent stops, labels removed"]
+
+    style A fill:#238636,color:#fff
+    style F fill:#1f6feb,color:#fff
+    style G fill:#da3633,color:#fff
+    style E fill:#d29922,color:#fff
 ```
 
 ### Phase Details
@@ -276,18 +276,26 @@ The agent runs with several safety mechanisms:
 
 ## Labels Lifecycle
 
-```
-Issue created
-     │
-     ▼
-[copilot]  ──plan──▶  [copilot:plan]  ──implement──▶  [copilot:working]  ──done──▶  [copilot:review]
-                           │    ▲
-                           │    │
-                        refine loop
-                       (comment ↔ update)
+```mermaid
+stateDiagram-v2
+    [*] --> copilot : Add label
+    copilot --> copilot_plan : Agent posts plan
+    copilot_plan --> copilot_plan : 💬 Refine loop\n(comment ↔ update)
+    copilot_plan --> copilot_working : ✅ /implement
+    copilot_working --> copilot_review : Agent opens draft PR
 
-At any point:  /cancel  →  all copilot labels removed
-On failure:    →  [copilot:failed]
+    copilot --> copilot_failed : ❌ Error
+    copilot_plan --> copilot_failed : ❌ Error
+    copilot_working --> copilot_failed : ❌ Error
+
+    copilot --> [*] : 🚫 /cancel
+    copilot_plan --> [*] : 🚫 /cancel
+
+    state "copilot" as copilot
+    state "copilot:plan" as copilot_plan
+    state "copilot:working" as copilot_working
+    state "copilot:review" as copilot_review
+    state "copilot:failed" as copilot_failed
 ```
 
 ## Requirements
