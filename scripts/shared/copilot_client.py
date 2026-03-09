@@ -101,13 +101,21 @@ def _make_post_tool_hook():
     async def on_post_tool_use(input_data, invocation):
         tool_name = input_data.get("toolName", "")
         tool_args = input_data.get("toolArgs", {})
+        # Log full input keys for debugging hook structure
+        logger.info("POST_TOOL input_keys=%s", list(input_data.keys()))
 
         if tool_name in ("shell", "bash"):
-            logger.info("AUDIT [%s]: %s", tool_name, tool_args.get("command", tool_args.get("input", "")))
+            cmd = tool_args.get("command", tool_args.get("input", ""))
+            logger.info("AUDIT [%s]: %s", tool_name, cmd[:500])
+            # Log tool output if available
+            result = input_data.get("toolResult", input_data.get("result", ""))
+            if result:
+                result_str = str(result)[:500]
+                logger.info("AUDIT [%s] output: %s", tool_name, result_str)
         elif tool_name in ("write_file", "read_file"):
             logger.info("AUDIT [%s]: %s", tool_name, tool_args.get("path", ""))
         else:
-            logger.info("AUDIT [%s]", tool_name)
+            logger.info("AUDIT [%s] args=%s", tool_name, {k: str(v)[:100] for k, v in tool_args.items()})
 
         return {}
 
@@ -138,12 +146,17 @@ async def create_session(
         await client.start()
         logger.info("Copilot client started successfully")
 
+        def _on_permission_request(req):
+            logger.info("PERMISSION_REQUEST: %s", req)
+            return {"kind": "approved"}
+
         logger.info("Creating session: model=%s, skill_dir=%s, phase=%s", config.model, skill_dir, phase)
+        logger.info("System message (first 300 chars): %s", system_message[:300])
         session = await client.create_session({
             "model": config.model,
             "skill_directories": [skill_dir],
             "system_message": {"content": system_message},
-            "on_permission_request": lambda req: {"kind": "approved"},
+            "on_permission_request": _on_permission_request,
             "hooks": {
                 "on_pre_tool_use": _make_pre_tool_hook(config, phase),
                 "on_post_tool_use": _make_post_tool_hook(),

@@ -27,6 +27,9 @@ async def main() -> None:
     system_message = (
         f"Du arbeitest im Repository {config.repo_owner}/{config.repo_name} "
         f"auf der GitHub-Instanz {config.github_server_url}.\n"
+        f"Du hast Zugriff auf ein bash-Shell-Tool. Du MUSST alle Aktionen "
+        f"über dieses Shell-Tool ausführen. Denke Schritt für Schritt nach.\n"
+        f"Wenn ein Befehl fehlschlägt, analysiere den Fehler und versuche es erneut.\n"
         f"{config.additional_instructions}"
     )
 
@@ -34,13 +37,15 @@ async def main() -> None:
         f"Issue #{issue_number} hat einen bestehenden Implementierungsplan. "
         f"Der User hat neues Feedback gegeben:\n\n"
         f"---\n{comment_body}\n---\n\n"
-        f"Schritte:\n"
-        f"1. Lies die bisherige Konversation via `gh issue view {issue_number} --comments`\n"
+        f"Denke zuerst nach: Was genau will der User ändern? Was muss am Plan angepasst werden?\n\n"
+        f"Dann führe aus:\n"
+        f"1. `gh issue view {issue_number} --comments` — lies die bisherige Konversation\n"
         f"2. Identifiziere den letzten Plan (zwischen `<!-- copilot:plan -->` Markern)\n"
         f"3. Berücksichtige das Feedback und aktualisiere den Plan\n"
-        f"4. Poste den aktualisierten Plan als neuen Kommentar via "
+        f"4. Poste den aktualisierten Plan via "
         f"`gh issue comment {issue_number} --body '...'`\n"
-        f"Behalte das gleiche Format bei (mit <!-- copilot:plan --> Markern)."
+        f"Behalte das gleiche Format bei (mit <!-- copilot:plan --> Markern).\n\n"
+        f"Du bist NICHT fertig bis du `gh issue comment` ausgeführt hast."
     )
 
     agent_root = os.environ.get("AGENT_ROOT", os.path.join(_SCRIPT_DIR, ".."))

@@ -10,7 +10,7 @@ inputs:
     required: true
   model:
     description: 'Copilot model to use'
-    default: 'gpt-4.1'
+    default: 'gpt-5.2'
   max-files-changed:
     description: 'Maximum files the agent may change during implementation'
     default: '10'
@@ -84,7 +84,7 @@ runs:
         COPILOT_PAT: ${{ inputs.copilot-pat }}
         GITHUB_REPOSITORY: ${{ github.repository }}
         GITHUB_SERVER_URL: ${{ github.server_url }}
-        GH_HOST: ${{ github.server_url }}
+        GH_HOST: ${{ github.event.repository.owner.login != '' && 'github.com' || github.server_url }}
         ISSUE_NUMBER: ${{ github.event.issue.number }}
         COMMENT_BODY: ${{ github.event.comment.body }}
         COMMENT_AUTHOR: ${{ github.event.comment.user.login }}

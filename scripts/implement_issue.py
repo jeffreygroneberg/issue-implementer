@@ -29,11 +29,15 @@ async def main() -> None:
         f"auf der GitHub-Instanz {config.github_server_url}.\n"
         f"Der Default-Branch ist '{config.default_branch}'.\n"
         f"Der User '{comment_author}' hat die Implementierung angefordert.\n"
+        f"Du hast Zugriff auf ein bash-Shell-Tool. Du MUSST alle Aktionen "
+        f"über dieses Shell-Tool ausführen. Denke Schritt für Schritt nach.\n"
+        f"Wenn ein Befehl fehlschlägt, analysiere den Fehler und versuche es erneut.\n"
         f"{config.additional_instructions}"
     )
 
     prompt = (
         f"Implementiere Issue #{issue_number} im Repository {config.repo_owner}/{config.repo_name}.\n\n"
+        f"Denke zuerst nach: Was genau soll implementiert werden? Welche Dateien müssen geändert werden?\n\n"
         f"Schritte:\n"
         f"1. Lies die Kommentare via `gh issue view {issue_number} --comments` und extrahiere "
         f"den letzten Plan (zwischen `<!-- copilot:plan -->` und `<!-- /copilot:plan -->` Markern)\n"

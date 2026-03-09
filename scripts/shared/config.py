@@ -14,7 +14,7 @@ _DEFAULTS = {
     "trigger_label": "copilot",
     "implement_command": "/implement",
     "cancel_command": "/cancel",
-    "model": "gpt-4.1",
+    "model": "gpt-5.2",
     "max_refinement_rounds": 10,
     "max_files_changed": 10,
     "timeout_minutes": 15,
@@ -76,7 +76,9 @@ def load_config() -> AgentConfig:
     cfg.github_token = os.environ.get("GH_TOKEN", os.environ.get("GITHUB_TOKEN", ""))
     cfg.copilot_pat = os.environ.get("COPILOT_PAT", "")
     cfg.github_server_url = os.environ.get("GITHUB_SERVER_URL", "https://github.com")
-    cfg.gh_host = os.environ.get("GH_HOST", "")
+    # GH_HOST must be a bare hostname (no scheme) for gh CLI
+    raw_host = os.environ.get("GH_HOST", "")
+    cfg.gh_host = raw_host.replace("https://", "").replace("http://", "").rstrip("/")
     cfg.default_branch = os.environ.get("DEFAULT_BRANCH", "main")
 
     repo_full = os.environ.get("GITHUB_REPOSITORY", "")
