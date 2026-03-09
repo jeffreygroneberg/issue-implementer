@@ -1,10 +1,13 @@
 """Load agent configuration from .github/copilot-agent.yml with sensible defaults."""
 
+import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
+
+logger = logging.getLogger("copilot-agent")
 
 
 _DEFAULTS = {
@@ -42,11 +45,16 @@ class AgentConfig:
 
 def load_config() -> AgentConfig:
     """Load config from YAML file + environment variables."""
+    logger.info("Loading configuration...")
     config_path = Path(".github/copilot-agent.yml")
     file_values: dict = {}
     if config_path.exists():
+        logger.info("Found config file: %s", config_path)
         with open(config_path) as f:
             file_values = yaml.safe_load(f) or {}
+        logger.info("Config file values: %s", {k: v for k, v in file_values.items() if k != 'copilot_pat'})
+    else:
+        logger.info("No config file at %s — using defaults", config_path)
 
     cfg = AgentConfig(
         trigger_label=file_values.get("trigger_label", _DEFAULTS["trigger_label"]),
@@ -75,4 +83,10 @@ def load_config() -> AgentConfig:
     if "/" in repo_full:
         cfg.repo_owner, cfg.repo_name = repo_full.split("/", 1)
 
+    logger.info(
+        "Config loaded: model=%s, repo=%s/%s, timeout=%dm, max_files=%d, trigger_label=%s",
+        cfg.model, cfg.repo_owner, cfg.repo_name,
+        cfg.timeout_minutes, cfg.max_files_changed, cfg.trigger_label,
+    )
+    logger.info("COPILOT_PAT present: %s, GITHUB_TOKEN present: %s", bool(cfg.copilot_pat), bool(cfg.github_token))
     return cfg

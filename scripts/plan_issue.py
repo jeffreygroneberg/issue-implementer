@@ -17,8 +17,10 @@ logger = logging.getLogger("copilot-agent")
 
 
 async def main() -> None:
+    logger.info("=== plan_issue.py starting ===")
     config = load_config()
     issue_number = os.environ["ISSUE_NUMBER"]
+    logger.info("Issue number: %s", issue_number)
 
     system_message = (
         f"Du arbeitest im Repository {config.repo_owner}/{config.repo_name} "
@@ -43,27 +45,44 @@ async def main() -> None:
 
     agent_root = os.environ.get("AGENT_ROOT", os.path.join(_SCRIPT_DIR, ".."))
     skill_dir = os.path.join(agent_root, "skills", "issue-planner")
+    logger.info("Skill directory: %s (exists=%s)", skill_dir, os.path.isdir(skill_dir))
+    logger.info("Sending prompt to agent...")
     result = await run_agent(config, skill_dir, system_message, prompt, phase="plan")
+    logger.info("Agent returned: result_type=%s, result_len=%d", type(result).__name__, len(result) if result else 0)
 
     # Fallback: if the agent returned text but didn't post a comment, post it ourselves
     if result:
+        logger.info("Checking if agent posted a comment on the issue...")
         check = subprocess.run(
             ["gh", "issue", "view", issue_number, "--json", "comments", "-q", ".comments | length"],
             capture_output=True, text=True, timeout=10,
         )
-        if check.returncode == 0 and check.stdout.strip() == "0":
-            logger.warning("Agent returned text but didn't post comment — posting fallback")
+        comment_count = check.stdout.strip() if check.returncode == 0 else "(error)"
+        logger.info("Issue comment count: %s (returncode=%d)", comment_count, check.returncode)
+        if check.returncode == 0 and comment_count == "0":
+            logger.warning("FALLBACK: Agent returned text but didn't post comment — posting via gh CLI")
             body = f"<!-- copilot:plan -->\n{result}\n<!-- /copilot:plan -->"
-            subprocess.run(
+            logger.info("Posting fallback comment (%d chars)...", len(body))
+            post_result = subprocess.run(
                 ["gh", "issue", "comment", issue_number, "--body", body],
-                check=False, timeout=30,
+                capture_output=True, text=True, check=False, timeout=30,
             )
-            subprocess.run(
+            logger.info("Fallback comment post: returncode=%d stdout=%s stderr=%s",
+                        post_result.returncode, post_result.stdout[:200], post_result.stderr[:200])
+            label_result = subprocess.run(
                 ["gh", "issue", "edit", issue_number,
                  "--remove-label", config.trigger_label,
                  "--add-label", "copilot:plan"],
-                check=False, timeout=30,
+                capture_output=True, text=True, check=False, timeout=30,
             )
+            logger.info("Fallback label update: returncode=%d stderr=%s",
+                        label_result.returncode, label_result.stderr[:200])
+        else:
+            logger.info("Agent already posted comment(s) — no fallback needed")
+    else:
+        logger.warning("Agent returned no result (None or empty)")
+
+    logger.info("=== plan_issue.py finished ===")
 
 
 if __name__ == "__main__":

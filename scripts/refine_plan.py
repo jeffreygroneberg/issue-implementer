@@ -14,10 +14,15 @@ from shared.copilot_client import run_agent
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 
+logger = logging.getLogger("copilot-agent")
+
+
 async def main() -> None:
+    logger.info("=== refine_plan.py starting ===")
     config = load_config()
     issue_number = os.environ["ISSUE_NUMBER"]
     comment_body = os.environ.get("COMMENT_BODY", "")
+    logger.info("Issue: %s, Comment length: %d chars", issue_number, len(comment_body))
 
     system_message = (
         f"Du arbeitest im Repository {config.repo_owner}/{config.repo_name} "
@@ -40,7 +45,10 @@ async def main() -> None:
 
     agent_root = os.environ.get("AGENT_ROOT", os.path.join(_SCRIPT_DIR, ".."))
     skill_dir = os.path.join(agent_root, "skills", "issue-planner")
-    await run_agent(config, skill_dir, system_message, prompt, phase="plan")
+    logger.info("Skill directory: %s (exists=%s)", skill_dir, os.path.isdir(skill_dir))
+    result = await run_agent(config, skill_dir, system_message, prompt, phase="plan")
+    logger.info("Agent returned: result_len=%d", len(result) if result else 0)
+    logger.info("=== refine_plan.py finished ===")
 
 
 if __name__ == "__main__":

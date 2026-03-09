@@ -55,12 +55,15 @@ def _is_shell_allowed(command: str) -> tuple[bool, str]:
 def _make_pre_tool_hook(config: AgentConfig, phase: str):
     """Create an on_pre_tool_use hook with guardrails."""
     files_written = 0
+    tool_call_count = 0
 
     async def on_pre_tool_use(input_data, invocation):
-        nonlocal files_written
+        nonlocal files_written, tool_call_count
+        tool_call_count += 1
 
         tool_name = input_data.get("toolName", "")
         tool_args = input_data.get("toolArgs", {})
+        logger.info("PRE_TOOL [#%d] tool=%s args_keys=%s", tool_call_count, tool_name, list(tool_args.keys()))
 
         # Guard: max files changed (implementation phase only)
         if phase == "implement" and tool_name == "write_file":
@@ -77,13 +80,15 @@ def _make_pre_tool_hook(config: AgentConfig, phase: str):
         # Guard: shell command allowlist
         if tool_name in ("shell", "bash"):
             command = tool_args.get("command", tool_args.get("input", ""))
+            logger.info("PRE_TOOL shell command: %s", command[:200])
             allowed, reason = _is_shell_allowed(command)
             if not allowed:
-                logger.warning("Blocked shell command: %s — %s", command, reason)
+                logger.warning("BLOCKED shell command: %s — %s", command, reason)
                 return {
                     "permissionDecision": "deny",
                     "permissionDecisionReason": reason,
                 }
+            logger.info("ALLOWED shell command")
 
         return {"permissionDecision": "allow"}
 
@@ -122,14 +127,18 @@ async def create_session(
         async with create_session(config, "./skills/issue-planner", "...", "plan") as session:
             response = await session.send_and_wait({"prompt": "..."})
     """
+    logger.info("Creating CopilotClient (use_logged_in_user=False)...")
     client = CopilotClient({
         "github_token": config.copilot_pat,
         "use_logged_in_user": False,
     })
     session = None
     try:
+        logger.info("Starting Copilot client...")
         await client.start()
+        logger.info("Copilot client started successfully")
 
+        logger.info("Creating session: model=%s, skill_dir=%s, phase=%s", config.model, skill_dir, phase)
         session = await client.create_session({
             "model": config.model,
             "skill_directories": [skill_dir],
@@ -140,12 +149,17 @@ async def create_session(
                 "on_post_tool_use": _make_post_tool_hook(),
             },
         })
+        logger.info("Session created successfully")
 
         yield session
     finally:
         if session:
+            logger.info("Destroying session...")
             await session.destroy()
+            logger.info("Session destroyed")
+        logger.info("Stopping Copilot client...")
         await client.stop()
+        logger.info("Copilot client stopped")
 
 
 async def run_agent(
@@ -161,14 +175,24 @@ async def run_agent(
     On timeout/error, posts a failure comment to the issue via gh CLI.
     """
     issue_number = os.environ.get("ISSUE_NUMBER", "")
+    logger.info("run_agent starting: phase=%s, issue=%s, timeout=%dm", phase, issue_number, config.timeout_minutes)
+    logger.info("Prompt (first 300 chars): %s", prompt[:300])
 
     try:
         async with create_session(config, skill_dir, system_message, phase) as session:
+            logger.info("Sending prompt to agent via send_and_wait (timeout=%ds)...", config.timeout_minutes * 60)
             response = await asyncio.wait_for(
                 session.send_and_wait({"prompt": prompt}),
                 timeout=config.timeout_minutes * 60,
             )
-            return response.data.content if response else None
+            if response:
+                content = response.data.content
+                logger.info("Agent response received: %d chars", len(content) if content else 0)
+                logger.info("Response preview (first 500 chars): %s", (content or "")[:500])
+                return content
+            else:
+                logger.warning("Agent returned None/empty response")
+                return None
 
     except asyncio.TimeoutError:
         logger.error("Agent timed out after %d minutes", config.timeout_minutes)
