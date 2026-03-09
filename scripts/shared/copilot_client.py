@@ -75,8 +75,8 @@ def _make_pre_tool_hook(config: AgentConfig, phase: str):
                 }
 
         # Guard: shell command allowlist
-        if tool_name == "shell":
-            command = tool_args.get("command", "")
+        if tool_name in ("shell", "bash"):
+            command = tool_args.get("command", tool_args.get("input", ""))
             allowed, reason = _is_shell_allowed(command)
             if not allowed:
                 logger.warning("Blocked shell command: %s — %s", command, reason)
@@ -97,8 +97,8 @@ def _make_post_tool_hook():
         tool_name = input_data.get("toolName", "")
         tool_args = input_data.get("toolArgs", {})
 
-        if tool_name == "shell":
-            logger.info("AUDIT [shell]: %s", tool_args.get("command", ""))
+        if tool_name in ("shell", "bash"):
+            logger.info("AUDIT [%s]: %s", tool_name, tool_args.get("command", tool_args.get("input", "")))
         elif tool_name in ("write_file", "read_file"):
             logger.info("AUDIT [%s]: %s", tool_name, tool_args.get("path", ""))
         else:
