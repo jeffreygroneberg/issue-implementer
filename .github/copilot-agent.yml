@@ -1,0 +1,28 @@
+# Copilot Agent Configuration
+# These values control the behavior of the Copilot issue agent.
+
+# Label that activates the agent
+trigger_label: copilot
+
+# Command that starts implementation
+implement_command: /implement
+
+# Command to cancel the agent
+cancel_command: /cancel
+
+# Maximum dialog rounds before the agent stops
+max_refinement_rounds: 10
+
+# Maximum number of files the agent may change during implementation
+max_files_changed: 10
+
+# Timeout for an agent session (minutes)
+timeout_minutes: 15
+
+# Model to use for LLM inference
+model: gpt-4.1
+
+# Additional context for the agent (appended to system message)
+# additional_instructions: |
+#   This repo uses Clean Architecture.
+#   Tests are under /tests with pytest.

@@ -1,0 +1,156 @@
+name: Copilot Agent
+
+on:
+  issues:
+    types: [labeled]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: copilot-issue-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Create Implementation Plan
+    if: >-
+      github.event_name == 'issues'
+      && github.event.action == 'labeled'
+      && github.event.label.name == 'copilot'
+      && !contains(github.event.issue.labels.*.name, 'copilot:plan')
+      && !contains(github.event.issue.labels.*.name, 'copilot:working')
+    runs-on: [self-hosted]
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      COPILOT_PAT: ${{ secrets.COPILOT_PAT }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
+      GITHUB_SERVER_URL: ${{ github.server_url }}
+      GH_HOST: ${{ github.server_url }}
+      ISSUE_NUMBER: ${{ github.event.issue.number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Copilot CLI & SDK
+        run: |
+          npm install -g @github/copilot
+          pip install -r requirements.txt
+
+      - name: Run Plan Agent
+        run: python scripts/plan_issue.py
+
+  refine:
+    name: Refine Plan
+    if: >-
+      github.event_name == 'issue_comment'
+      && github.event.action == 'created'
+      && contains(github.event.issue.labels.*.name, 'copilot:plan')
+      && github.event.comment.user.login != 'github-actions[bot]'
+      && !startsWith(github.event.comment.body, '/implement')
+      && !startsWith(github.event.comment.body, '/cancel')
+    runs-on: [self-hosted]
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      COPILOT_PAT: ${{ secrets.COPILOT_PAT }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
+      GITHUB_SERVER_URL: ${{ github.server_url }}
+      GH_HOST: ${{ github.server_url }}
+      ISSUE_NUMBER: ${{ github.event.issue.number }}
+      COMMENT_BODY: ${{ github.event.comment.body }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Copilot CLI & SDK
+        run: |
+          npm install -g @github/copilot
+          pip install -r requirements.txt
+
+      - name: Run Refine Agent
+        run: python scripts/refine_plan.py
+
+  implement:
+    name: Implement Plan
+    if: >-
+      github.event_name == 'issue_comment'
+      && github.event.action == 'created'
+      && contains(github.event.issue.labels.*.name, 'copilot:plan')
+      && github.event.comment.body == '/implement'
+    runs-on: [self-hosted]
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      COPILOT_PAT: ${{ secrets.COPILOT_PAT }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
+      GITHUB_SERVER_URL: ${{ github.server_url }}
+      GH_HOST: ${{ github.server_url }}
+      ISSUE_NUMBER: ${{ github.event.issue.number }}
+      COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Copilot CLI & SDK
+        run: |
+          npm install -g @github/copilot
+          pip install -r requirements.txt
+
+      - name: Run Implement Agent
+        run: python scripts/implement_issue.py
+
+  cancel:
+    name: Cancel Agent
+    if: >-
+      github.event_name == 'issue_comment'
+      && github.event.action == 'created'
+      && github.event.comment.body == '/cancel'
+      && (
+        contains(github.event.issue.labels.*.name, 'copilot:plan')
+        || contains(github.event.issue.labels.*.name, 'copilot:working')
+      )
+    runs-on: [self-hosted]
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      ISSUE_NUMBER: ${{ github.event.issue.number }}
+    steps:
+      - name: Cancel and clean up
+        run: |
+          gh issue edit "$ISSUE_NUMBER" \
+            --remove-label "copilot:plan" \
+            --remove-label "copilot:working" \
+            --remove-label "copilot" 2>/dev/null || true
+          gh issue comment "$ISSUE_NUMBER" \
+            --body "🛑 Copilot-Agent wurde abgebrochen."

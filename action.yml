@@ -1,0 +1,105 @@
+name: 'Copilot Issue Agent'
+description: 'Label-to-PR Autopilot — analyze issues, create plans, refine via dialog, implement and open PRs using GitHub Copilot SDK.'
+branding:
+  icon: 'cpu'
+  color: 'purple'
+
+inputs:
+  copilot-pat:
+    description: 'Fine-Grained PAT with Copilot Requests permission'
+    required: true
+  model:
+    description: 'Copilot model to use'
+    default: 'gpt-4.1'
+  max-files-changed:
+    description: 'Maximum files the agent may change during implementation'
+    default: '10'
+  timeout-minutes:
+    description: 'Timeout for agent session in minutes'
+    default: '15'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Detect mode
+      id: detect
+      shell: bash
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        LABEL_NAME: ${{ github.event.label.name }}
+        COMMENT_BODY: ${{ github.event.comment.body }}
+        ACTOR: ${{ github.actor }}
+        ISSUE_LABELS: ${{ join(github.event.issue.labels.*.name, ',') }}
+      run: |
+        MODE="skip"
+
+        if [[ "$EVENT_NAME" == "issues" && "$LABEL_NAME" == "copilot" ]]; then
+          if [[ "$ISSUE_LABELS" != *"copilot:plan"* && "$ISSUE_LABELS" != *"copilot:working"* ]]; then
+            MODE="plan"
+          fi
+        elif [[ "$EVENT_NAME" == "issue_comment" && "$ACTOR" != "github-actions[bot]" ]]; then
+          if [[ "$COMMENT_BODY" == "/implement" && "$ISSUE_LABELS" == *"copilot:plan"* ]]; then
+            MODE="implement"
+          elif [[ "$COMMENT_BODY" == "/cancel" ]]; then
+            MODE="cancel"
+          elif [[ "$ISSUE_LABELS" == *"copilot:plan"* ]]; then
+            MODE="refine"
+          fi
+        fi
+
+        echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+        echo "::notice::Copilot Agent mode: $MODE"
+
+    - name: Setup Python
+      if: steps.detect.outputs.mode != 'skip' && steps.detect.outputs.mode != 'cancel'
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Setup Node
+      if: steps.detect.outputs.mode != 'skip' && steps.detect.outputs.mode != 'cancel'
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+
+    - name: Install dependencies
+      if: steps.detect.outputs.mode != 'skip' && steps.detect.outputs.mode != 'cancel'
+      shell: bash
+      run: |
+        pip install -r "${{ github.action_path }}/requirements.txt"
+        npm install -g @github/copilot
+
+    - name: Configure Git
+      if: steps.detect.outputs.mode == 'implement'
+      shell: bash
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+
+    - name: Run Agent
+      if: steps.detect.outputs.mode != 'skip'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        COPILOT_PAT: ${{ inputs.copilot-pat }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_SERVER_URL: ${{ github.server_url }}
+        GH_HOST: ${{ github.server_url }}
+        ISSUE_NUMBER: ${{ github.event.issue.number }}
+        COMMENT_BODY: ${{ github.event.comment.body }}
+        COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+        DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        MODEL: ${{ inputs.model }}
+        MAX_FILES_CHANGED: ${{ inputs.max-files-changed }}
+        TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
+        AGENT_ROOT: ${{ github.action_path }}
+      run: |
+        case "${{ steps.detect.outputs.mode }}" in
+          plan)      python "${{ github.action_path }}/scripts/plan_issue.py" ;;
+          refine)    python "${{ github.action_path }}/scripts/refine_plan.py" ;;
+          implement) python "${{ github.action_path }}/scripts/implement_issue.py" ;;
+          cancel)
+            gh issue edit "$ISSUE_NUMBER" --remove-label copilot,copilot:plan,copilot:working 2>/dev/null || true
+            gh issue comment "$ISSUE_NUMBER" --body "🚫 Copilot-Agent abgebrochen."
+            ;;
+        esac
