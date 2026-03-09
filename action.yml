@@ -33,8 +33,15 @@ runs:
         COMMENT_BODY: ${{ github.event.comment.body }}
         ACTOR: ${{ github.actor }}
         ISSUE_LABELS: ${{ join(github.event.issue.labels.*.name, ',') }}
+        ISSUE_STATE: ${{ github.event.issue.state }}
       run: |
         MODE="skip"
+
+        if [[ "$ISSUE_STATE" != "open" ]]; then
+          echo "::notice::Issue is not open (state=$ISSUE_STATE) — skipping"
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
 
         if [[ "$EVENT_NAME" == "issues" && "$LABEL_NAME" == "copilot" ]]; then
           if [[ "$ISSUE_LABELS" != *"copilot:plan"* && "$ISSUE_LABELS" != *"copilot:working"* ]]; then

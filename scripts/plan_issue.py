@@ -3,7 +3,6 @@
 import asyncio
 import logging
 import os
-import subprocess
 import sys
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -48,7 +47,13 @@ async def main() -> None:
         f"Schritt 3: Reagiere auf das Issue\n"
         f"```bash\ngh api repos/{config.repo_owner}/{config.repo_name}/issues/{issue_number}/reactions -f content=eyes\n```\n\n"
         f"Schritt 4: Erstelle und poste den Plan\n"
-        f"Erstelle einen detaillierten Plan. Poste ihn dann mit:\n"
+        f"Erstelle einen detaillierten Plan. Füge am Ende des Plans IMMER folgenden Abschnitt ein:\n"
+        f"---\n"
+        f"**🤖 Nächste Schritte:**\n"
+        f"- 💬 Kommentiere mit Feedback → der Plan wird angepasst\n"
+        f"- ✅ `/implement` → Implementierung starten\n"
+        f"- 🚫 `/cancel` → Agent abbrechen\n\n"
+        f"Poste den Plan dann mit:\n"
         f"```bash\ngh issue comment {issue_number} --body '<!-- copilot:plan -->\n<DEIN PLAN>\n<!-- /copilot:plan -->'\n```\n\n"
         f"Schritt 5: Aktualisiere die Labels\n"
         f"```bash\ngh issue edit {issue_number} --remove-label {config.trigger_label} --add-label copilot:plan\n```\n\n"
@@ -63,48 +68,9 @@ async def main() -> None:
     result = await run_agent(config, skill_dir, system_message, prompt, phase="plan")
     logger.info("Agent returned: result_type=%s, result_len=%d", type(result).__name__, len(result) if result else 0)
 
-    # Fallback: if the agent returned text but didn't post a comment, post it ourselves
-    if result:
-        logger.info("Checking if agent posted a comment on the issue...")
-        repo = f"{config.repo_owner}/{config.repo_name}"
-        check = subprocess.run(
-            ["gh", "issue", "view", issue_number, "--repo", repo,
-             "--json", "comments", "-q", ".comments | length"],
-            capture_output=True, text=True, timeout=10,
-        )
-        logger.info("Comment check: returncode=%d stdout=%r stderr=%r",
-                    check.returncode, check.stdout.strip(), check.stderr.strip()[:200])
-
-        needs_fallback = False
-        if check.returncode != 0:
-            logger.warning("gh issue view failed (rc=%d) — assuming no comments, will fallback", check.returncode)
-            needs_fallback = True
-        elif check.stdout.strip() == "0":
-            logger.info("Confirmed: 0 comments on issue")
-            needs_fallback = True
-        else:
-            logger.info("Agent already posted %s comment(s) — no fallback needed", check.stdout.strip())
-
-        if needs_fallback:
-            logger.warning("FALLBACK: Posting agent result as comment via gh CLI")
-            body = f"<!-- copilot:plan -->\n{result}\n<!-- /copilot:plan -->"
-            logger.info("Posting fallback comment (%d chars)...", len(body))
-            post_result = subprocess.run(
-                ["gh", "issue", "comment", issue_number, "--repo", repo, "--body", body],
-                capture_output=True, text=True, check=False, timeout=30,
-            )
-            logger.info("Fallback comment post: returncode=%d stdout=%s stderr=%s",
-                        post_result.returncode, post_result.stdout[:200], post_result.stderr[:200])
-            label_result = subprocess.run(
-                ["gh", "issue", "edit", issue_number, "--repo", repo,
-                 "--remove-label", config.trigger_label,
-                 "--add-label", "copilot:plan"],
-                capture_output=True, text=True, check=False, timeout=30,
-            )
-            logger.info("Fallback label update: returncode=%d stderr=%s",
-                        label_result.returncode, label_result.stderr[:200])
-    else:
-        logger.warning("Agent returned no result (None or empty)")
+    if not result:
+        logger.error("Agent returned no result — failing the job")
+        sys.exit(1)
 
     logger.info("=== plan_issue.py finished ===")
 
