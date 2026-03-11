@@ -130,6 +130,6 @@ runs:
           implement) python "${{ github.action_path }}/scripts/implement_issue.py" ;;
           cancel)
             gh issue edit "$ISSUE_NUMBER" --remove-label copilot,copilot:plan,copilot:working 2>/dev/null || true
-            gh issue comment "$ISSUE_NUMBER" --body "🚫 Copilot-Agent abgebrochen."
+            gh issue comment "$ISSUE_NUMBER" --body "🚫 Copilot Agent cancelled."
             ;;
         esac

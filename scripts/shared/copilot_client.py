@@ -32,7 +32,36 @@ BLOCKED_PATTERNS = (
     re.compile(r"curl\b(?!.*localhost)"),
     re.compile(r">\s*/etc/"),
     re.compile(r"dd\s+if="),
+    re.compile(r";|\|\||&&|`|\$\("),  # block command chaining and subshells (single | pipe is allowed)
 )
+
+
+# Human-readable descriptions of blocked patterns for the agent
+_BLOCKED_DESCRIPTIONS = (
+    "rm -r (recursive deletion)",
+    "sudo (privilege escalation)",
+    "chmod / chown (permission changes)",
+    "wget (downloads)",
+    "curl (except localhost)",
+    "writing to /etc/",
+    "dd (disk operations)",
+    "command chaining with ; && || backticks or $() — use single | (pipe) instead",
+)
+
+
+def build_shell_policy() -> str:
+    """Build a human-readable shell policy string from the allowlist constants."""
+    allowed = ", ".join(f"`{p.strip()}`" for p in ALLOWED_SHELL_PREFIXES)
+    blocked = "\n".join(f"  - {d}" for d in _BLOCKED_DESCRIPTIONS)
+    return (
+        "SHELL POLICY — your shell commands are checked against an allowlist.\n"
+        f"Allowed command prefixes: {allowed}\n"
+        f"Also allowed: `pwd`, `whoami`, `date`\n"
+        "Blocked (will be denied):\n"
+        f"{blocked}\n"
+        "Do NOT attempt blocked commands — they will fail. "
+        "Use only the allowed commands above.\n"
+    )
 
 
 def _is_shell_allowed(command: str) -> tuple[bool, str]:
@@ -47,7 +76,7 @@ def _is_shell_allowed(command: str) -> tuple[bool, str]:
         return True, ""
 
     # Allow simple commands that don't modify system state
-    if cmd in ("pwd", "whoami", "date", "env"):
+    if cmd in ("pwd", "whoami", "date"):
         return True, ""
 
     return False, f"Command not in allowlist: {cmd.split()[0] if cmd else '(empty)'}"
@@ -215,12 +244,12 @@ async def run_agent(
 
     except asyncio.TimeoutError:
         logger.error("Agent timed out after %d minutes", config.timeout_minutes)
-        _post_failure(issue_number, f"⏱️ Agent-Timeout nach {config.timeout_minutes} Minuten.")
+        _post_failure(issue_number, f"⏱️ Agent timed out after {config.timeout_minutes} minutes.")
         return None
 
     except Exception:
         logger.exception("Agent session failed")
-        _post_failure(issue_number, "❌ Agent-Fehler aufgetreten. Siehe Workflow-Logs für Details.")
+        _post_failure(issue_number, "❌ Agent error occurred. See workflow logs for details.")
         return None
 
 

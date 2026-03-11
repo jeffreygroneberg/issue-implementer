@@ -3,13 +3,14 @@
 import asyncio
 import logging
 import os
+import re
 import sys
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(_SCRIPT_DIR, ".."))
 
 from shared.config import load_config
-from shared.copilot_client import run_agent
+from shared.copilot_client import build_shell_policy, run_agent
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
@@ -21,38 +22,46 @@ async def main() -> None:
     logger.info("=== implement_issue.py starting ===")
     config = load_config()
     issue_number = os.environ["ISSUE_NUMBER"]
+    if not issue_number.isdigit():
+        logger.error("Invalid ISSUE_NUMBER: %s", issue_number)
+        sys.exit(1)
     comment_author = os.environ.get("COMMENT_AUTHOR", "unknown")
+    # Sanitize author to alphanumeric, hyphens, underscores (valid GitHub usernames)
+    if not re.match(r'^[a-zA-Z0-9_-]+$', comment_author):
+        logger.error("Invalid COMMENT_AUTHOR: %s", comment_author)
+        sys.exit(1)
     logger.info("Issue: %s, Author: %s", issue_number, comment_author)
 
     system_message = (
-        f"Du arbeitest im Repository {config.repo_owner}/{config.repo_name} "
-        f"auf der GitHub-Instanz {config.github_server_url}.\n"
-        f"Der Default-Branch ist '{config.default_branch}'.\n"
-        f"Der User '{comment_author}' hat die Implementierung angefordert.\n"
-        f"Du hast Zugriff auf ein bash-Shell-Tool. Du MUSST alle Aktionen "
-        f"über dieses Shell-Tool ausführen. Denke Schritt für Schritt nach.\n"
-        f"Wenn ein Befehl fehlschlägt, analysiere den Fehler und versuche es erneut.\n"
+        f"You are working in the repository {config.repo_owner}/{config.repo_name} "
+        f"on the GitHub instance {config.github_server_url}.\n"
+        f"The default branch is '{config.default_branch}'.\n"
+        f"The user '{comment_author}' has requested the implementation.\n"
+        f"You have access to a bash shell tool. You MUST perform all actions "
+        f"through this shell tool. Think step by step.\n"
+        f"If a command fails, analyze the error and try again.\n\n"
+        f"{build_shell_policy()}\n"
         f"{config.additional_instructions}"
     )
 
     prompt = (
-        f"Implementiere Issue #{issue_number} im Repository {config.repo_owner}/{config.repo_name}.\n\n"
-        f"Denke zuerst nach: Was genau soll implementiert werden? Welche Dateien müssen geändert werden?\n\n"
-        f"Schritte:\n"
-        f"1. Lies die Kommentare via `gh issue view {issue_number} --comments` und extrahiere "
-        f"den letzten Plan (zwischen `<!-- copilot:plan -->` und `<!-- /copilot:plan -->` Markern)\n"
-        f"2. Aktualisiere Labels: `gh issue edit {issue_number} "
+        f"Implement Issue #{issue_number} in the repository {config.repo_owner}/{config.repo_name}.\n\n"
+        f"Think first: What exactly needs to be implemented? Which files need to be changed?\n\n"
+        f"Steps:\n"
+        f"1. Read the comments via `gh issue view {issue_number} --comments` and extract "
+        f"the latest plan (between `<!-- copilot:plan -->` and `<!-- /copilot:plan -->` markers)\n"
+        f"2. Update labels: `gh issue edit {issue_number} "
         f"--remove-label copilot:plan --add-label copilot:working`\n"
-        f"3. Erstelle Branch: `git checkout -b copilot/issue-{issue_number}`\n"
-        f"4. Implementiere den Code gemäß Plan\n"
-        f"5. Committe: `git add .` dann `git commit -m 'feat: ...' "
+        f"3. Create branch: `git checkout -b copilot/issue-{issue_number}`\n"
+        f"4. Implement the code according to the plan\n"
+        f"5. Commit: `git add .` then `git commit -m 'feat: ...' "
         f"--trailer 'Co-authored-by: {comment_author}'`\n"
-        f"6. Pushe: `git push origin copilot/issue-{issue_number}`\n"
-        f"7. Erstelle Draft-PR: `gh pr create --draft "
-        f"--title '[Copilot] <issue-titel>' "
+        f"6. Push: `git push origin copilot/issue-{issue_number}`\n"
+        f"7. Create draft PR: `gh pr create --draft "
+        f"--title '[Copilot] <issue-title>' "
         f"--body '...' --base {config.default_branch}`\n"
-        f"8. Kommentiere das Issue mit dem PR-Link\n"
-        f"9. Aktualisiere Labels: `gh issue edit {issue_number} "
+        f"8. Comment on the issue with the PR link\n"
+        f"9. Update labels: `gh issue edit {issue_number} "
         f"--remove-label copilot:working --add-label copilot:review`"
     )
 

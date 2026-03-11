@@ -153,4 +153,4 @@ jobs:
             --remove-label "copilot:working" \
             --remove-label "copilot" 2>/dev/null || true
           gh issue comment "$ISSUE_NUMBER" \
-            --body "🛑 Copilot-Agent wurde abgebrochen."
+            --body "🛑 Copilot Agent cancelled."

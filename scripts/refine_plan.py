@@ -9,7 +9,7 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(_SCRIPT_DIR, ".."))
 
 from shared.config import load_config
-from shared.copilot_client import run_agent
+from shared.copilot_client import build_shell_policy, run_agent
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
@@ -21,31 +21,35 @@ async def main() -> None:
     logger.info("=== refine_plan.py starting ===")
     config = load_config()
     issue_number = os.environ["ISSUE_NUMBER"]
+    if not issue_number.isdigit():
+        logger.error("Invalid ISSUE_NUMBER: %s", issue_number)
+        sys.exit(1)
     comment_body = os.environ.get("COMMENT_BODY", "")
     logger.info("Issue: %s, Comment length: %d chars", issue_number, len(comment_body))
 
     system_message = (
-        f"Du arbeitest im Repository {config.repo_owner}/{config.repo_name} "
-        f"auf der GitHub-Instanz {config.github_server_url}.\n"
-        f"Du hast Zugriff auf ein bash-Shell-Tool. Du MUSST alle Aktionen "
-        f"über dieses Shell-Tool ausführen. Denke Schritt für Schritt nach.\n"
-        f"Wenn ein Befehl fehlschlägt, analysiere den Fehler und versuche es erneut.\n"
+        f"You are working in the repository {config.repo_owner}/{config.repo_name} "
+        f"on the GitHub instance {config.github_server_url}.\n"
+        f"You have access to a bash shell tool. You MUST perform all actions "
+        f"through this shell tool. Think step by step.\n"
+        f"If a command fails, analyze the error and try again.\n\n"
+        f"{build_shell_policy()}\n"
         f"{config.additional_instructions}"
     )
 
     prompt = (
-        f"Issue #{issue_number} hat einen bestehenden Implementierungsplan. "
-        f"Der User hat neues Feedback gegeben:\n\n"
+        f"Issue #{issue_number} has an existing implementation plan. "
+        f"The user has provided new feedback:\n\n"
         f"---\n{comment_body}\n---\n\n"
-        f"Denke zuerst nach: Was genau will der User ändern? Was muss am Plan angepasst werden?\n\n"
-        f"Dann führe aus:\n"
-        f"1. `gh issue view {issue_number} --comments` — lies die bisherige Konversation\n"
-        f"2. Identifiziere den letzten Plan (zwischen `<!-- copilot:plan -->` Markern)\n"
-        f"3. Berücksichtige das Feedback und aktualisiere den Plan\n"
-        f"4. Poste den aktualisierten Plan via "
+        f"Think first: What exactly does the user want to change? What needs to be adjusted in the plan?\n\n"
+        f"Then execute:\n"
+        f"1. `gh issue view {issue_number} --comments` — read the existing conversation\n"
+        f"2. Identify the latest plan (between `<!-- copilot:plan -->` markers)\n"
+        f"3. Consider the feedback and update the plan\n"
+        f"4. Post the updated plan via "
         f"`gh issue comment {issue_number} --body '...'`\n"
-        f"Behalte das gleiche Format bei (mit <!-- copilot:plan --> Markern).\n\n"
-        f"Du bist NICHT fertig bis du `gh issue comment` ausgeführt hast."
+        f"Keep the same format (with <!-- copilot:plan --> markers).\n\n"
+        f"You are NOT done until you have executed `gh issue comment`."
     )
 
     agent_root = os.environ.get("AGENT_ROOT", os.path.join(_SCRIPT_DIR, ".."))

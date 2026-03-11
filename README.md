@@ -287,10 +287,12 @@ The action detects what to do based on the GitHub event:
 The agent runs with several safety mechanisms:
 
 - **Tool allowlist**: Only `bash`, `glob`, `view`, `web_fetch`, `report_intent`, `task` are available (plus `write_file`/`read_file` during implementation)
-- **Shell command allowlist**: Only `gh`, `git`, `cat`, `find`, `grep`, and similar read-safe commands are permitted
-- **Blocked patterns**: `rm -r`, `sudo`, `chmod`, `wget`, `curl` (non-localhost), and other destructive commands are blocked
+- **Shell command allowlist**: Only `gh`, `git`, `ls`, `cat`, `find`, `tree`, `head`, `tail`, `wc`, `grep`, `awk`, `sed`, `sort`, `uniq`, `diff`, `echo`, `mkdir`, `cp`, `mv`, `python -m pytest`, `pwd`, `whoami`, `date` are permitted
+- **Blocked patterns**: `rm -r`, `sudo`, `chmod`, `chown`, `wget`, `curl` (non-localhost), writes to `/etc/`, `dd`, and command chaining (`;`, `&&`, `||`, backticks, `$()`) are blocked
+- **Input validation**: `ISSUE_NUMBER` must be numeric, `COMMENT_AUTHOR` must match valid GitHub username characters
 - **File change limit**: Configurable cap on how many files the agent can write (default: 10)
 - **Timeout**: Configurable session timeout (default: 15 minutes)
+- **Agent awareness**: The shell policy is automatically generated from the allowlist constants and injected into the agent's system message — the agent knows what it can and cannot run
 
 ## Labels Lifecycle
 
