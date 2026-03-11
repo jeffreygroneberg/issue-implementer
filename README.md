@@ -23,6 +23,8 @@ This project is packaged as a [Composite Action](https://docs.github.com/en/acti
 - **Easy to share across an enterprise.** On GHES, you can host this action in an [internal repository](https://docs.github.com/en/enterprise-server@latest/repositories/creating-and-managing-repositories/about-repositories#about-internal-repositories) visible to all organization members. Any repo in the same GHES instance can then reference it with `uses: your-org/issue-implementer@v1` — no marketplace publishing needed.
 - **Transparent and auditable.** All logic lives in plain Python scripts and a YAML file. Enterprise security teams can review exactly what runs before approving it for use across the organization.
 
+![Composite Action Sharing Model](docs/composite-action.png)
+
 ### Sharing on GHES
 
 To make this action available across your GHES organization:
@@ -37,6 +39,8 @@ No marketplace, no container registry, no npm packages. Just a Git repo with a t
 ## How It Works
 
 The agent operates in a **plan → refine → implement** loop driven entirely by labels and issue comments:
+
+![Architecture Overview](docs/architecture.png)
 
 ```mermaid
 flowchart TD
