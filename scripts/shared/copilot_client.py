@@ -8,8 +8,7 @@ import subprocess
 import sys
 from contextlib import asynccontextmanager
 
-from copilot import CopilotClient
-from copilot.types import PermissionHandler
+from copilot import CopilotClient, PermissionHandler, SubprocessConfig
 
 from .config import AgentConfig
 
@@ -163,13 +162,13 @@ async def create_session(
 
     Usage:
         async with create_session(config, "./skills/issue-planner", "...", "plan") as session:
-            response = await session.send_and_wait({"prompt": "..."})
+            response = await session.send_and_wait("...")
     """
     logger.info("Creating CopilotClient (use_logged_in_user=False)...")
-    client = CopilotClient({
-        "github_token": config.copilot_pat,
-        "use_logged_in_user": False,
-    })
+    client = CopilotClient(SubprocessConfig(
+        github_token=config.copilot_pat,
+        use_logged_in_user=False,
+    ))
     session = None
     try:
         logger.info("Starting Copilot client...")
@@ -181,7 +180,7 @@ async def create_session(
         tools = ["bash", "glob", "view", "web_fetch", "report_intent", "task"]
         if phase == "implement":
             tools += ["write_file", "read_file"]
-        session_config = {
+        session_kwargs = {
             "model": config.model,
             "skill_directories": [skill_dir],
             "system_message": {"content": system_message},
@@ -193,17 +192,17 @@ async def create_session(
             },
         }
         if config.reasoning_effort:
-            session_config["reasoning_effort"] = config.reasoning_effort
+            session_kwargs["reasoning_effort"] = config.reasoning_effort
             logger.info("reasoning_effort=%s", config.reasoning_effort)
-        session = await client.create_session(session_config)
+        session = await client.create_session(**session_kwargs)
         logger.info("Session created successfully")
 
         yield session
     finally:
         if session:
-            logger.info("Destroying session...")
-            await session.destroy()
-            logger.info("Session destroyed")
+            logger.info("Disconnecting session...")
+            await session.disconnect()
+            logger.info("Session disconnected")
         logger.info("Stopping Copilot client...")
         await client.stop()
         logger.info("Copilot client stopped")
@@ -230,7 +229,7 @@ async def run_agent(
             timeout_secs = config.timeout_minutes * 60
             logger.info("Sending prompt to agent via send_and_wait (timeout=%ds)...", timeout_secs)
             response = await asyncio.wait_for(
-                session.send_and_wait({"prompt": prompt}, timeout=timeout_secs),
+                session.send_and_wait(prompt, timeout=timeout_secs),
                 timeout=timeout_secs + 30,  # outer guard slightly longer
             )
             if response:
