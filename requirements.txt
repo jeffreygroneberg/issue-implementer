@@ -1,2 +1,2 @@
-github-copilot-sdk
+github-copilot-sdk==0.2.0
 PyYAML
